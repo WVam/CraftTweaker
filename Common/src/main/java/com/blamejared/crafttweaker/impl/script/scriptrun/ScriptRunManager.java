@@ -1,6 +1,7 @@
 package com.blamejared.crafttweaker.impl.script.scriptrun;
 
 import com.blamejared.crafttweaker.api.CraftTweakerAPI;
+import com.blamejared.crafttweaker.api.CraftTweakerConstants;
 import com.blamejared.crafttweaker.api.action.base.IAction;
 import com.blamejared.crafttweaker.api.action.base.IRuntimeAction;
 import com.blamejared.crafttweaker.api.zencode.IPreprocessor;
@@ -12,6 +13,7 @@ import com.blamejared.crafttweaker.api.zencode.scriptrun.IScriptRunManager;
 import com.blamejared.crafttweaker.api.zencode.scriptrun.ScriptRunConfiguration;
 import com.blamejared.crafttweaker.impl.helper.FileGathererHelper;
 import com.google.common.base.Suppliers;
+import org.apache.logging.log4j.Logger;
 import org.openzen.zencode.shared.SourceFile;
 
 import java.io.IOException;
@@ -42,12 +44,14 @@ public final class ScriptRunManager implements IScriptRunManager {
                 .thenComparing(IScriptFile::name);
     });
     
+    private final Logger logger;
     private final Map<IScriptLoader, RunInfoQueue> previousRunQueues;
     private final ThreadLocal<Integer> nestingLevel;
     private RunInfo currentRunInfo;
     
     private ScriptRunManager() {
         
+        this.logger = CraftTweakerAPI.getLogger(CraftTweakerConstants.MOD_NAME + "-ZenCode");
         this.previousRunQueues = new HashMap<>();
         this.nestingLevel = ThreadLocal.withInitial(() -> 0);
         this.currentRunInfo = null;
@@ -77,7 +81,7 @@ public final class ScriptRunManager implements IScriptRunManager {
         final RunInfo info = RunInfo.create(configuration);
         final List<SourceFile> sources = files
                 .stream()
-                .map(it -> ScriptFile.of(root, it, info, preprocessors))
+                .map(it -> ScriptFile.of(this.logger, root, it, info, preprocessors))
                 .sorted(FILE_COMPARATOR.get())
                 .map(ScriptFile::toSourceFile)
                 .filter(Optional::isPresent)
@@ -115,10 +119,11 @@ public final class ScriptRunManager implements IScriptRunManager {
     
     private IScriptRun createScriptRun(final List<SourceFile> sources, final RunInfo info) {
         
-        this.previousRunQueues.computeIfAbsent(info.loader(), it -> new RunInfoQueue());
+        this.previousRunQueues.computeIfAbsent(info.loader(), it -> new RunInfoQueue(() -> this.logger.info("Undoing previous actions")));
         return new ScriptRun(
                 sources,
                 info,
+                this.logger,
                 this::updateCurrentRunInfo,
                 loader -> this.previousRunQueues.get(loader).isFirstRun(),
                 loader -> this.previousRunQueues.get(loader).undoActions()
@@ -175,13 +180,16 @@ public final class ScriptRunManager implements IScriptRunManager {
         
         final RunInfo info = Objects.requireNonNull(this.currentRunInfo);
         
+        final String systemName = this.checkSystemName(action);
+        final Logger logger = CraftTweakerAPI.getLogger(systemName);
+        
         try {
             
-            if(!action.shouldApplyOn(info.loadSource())) {
+            if(!action.shouldApplyOn(info.loadSource(), logger)) {
                 return;
             }
             
-            if(!action.validate(CraftTweakerAPI.LOGGER)) {
+            if(!action.validate(logger)) {
                 info.enqueueAction(action, false);
                 return;
             }
@@ -190,7 +198,7 @@ public final class ScriptRunManager implements IScriptRunManager {
             try {
                 
                 this.nestingLevel.set(nestLevel + 1);
-                CraftTweakerAPI.LOGGER.info(this.makeNestedDescription(action, nestLevel));
+                logger.info(this.makeNestedDescription(action, nestLevel));
                 action.apply();
                 info.enqueueAction(action, true);
             } finally {
@@ -199,8 +207,17 @@ public final class ScriptRunManager implements IScriptRunManager {
             }
             
         } catch(final Exception e) {
-            CraftTweakerAPI.LOGGER.error("Unable to run action due to an error", e);
+            logger.error("Unable to run action due to an error", e);
         }
+    }
+    
+    private String checkSystemName(final IAction action) {
+        
+        final String systemName = action.systemName();
+        if(systemName == null || systemName.isEmpty()) {
+            throw new IllegalStateException("Action " + action + " does not specify a valid system name");
+        }
+        return systemName;
     }
     
     private String makeNestedDescription(final IAction action, final int nestLevel) {
@@ -212,7 +229,7 @@ public final class ScriptRunManager implements IScriptRunManager {
         
         final String description = action.describe();
         if(description == null || description.isEmpty()) {
-            return "Applying unknown action '" + action + "': tell the mod author to properly implement describe";
+            return "Applying unknown action '" + action + "': tell the mod author to properly implement describe"; // TODO("Should this be an exception?")
         }
         
         return description;

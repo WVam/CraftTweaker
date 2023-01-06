@@ -1,6 +1,5 @@
 package com.blamejared.crafttweaker.impl.command.type;
 
-import com.blamejared.crafttweaker.api.CraftTweakerAPI;
 import com.blamejared.crafttweaker.api.bracket.custom.RecipeTypeBracketHandler;
 import com.blamejared.crafttweaker.api.command.CommandUtilities;
 import com.blamejared.crafttweaker.api.item.IItemStack;
@@ -78,7 +77,7 @@ public final class RecipeCommands {
     
     private static int dumpRecipes(final Player player) {
         
-        CraftTweakerAPI.LOGGER.info("Dumping all recipes!");
+        CommandUtilities.COMMAND_LOGGER.info("Dumping all recipes!");
         
         ((AccessRecipeManager) player.level.getRecipeManager()).crafttweaker$getRecipes()
                 .forEach((recipeType, map) -> dumpRecipe(recipeType, map.values(), it -> true, false));
@@ -106,7 +105,7 @@ public final class RecipeCommands {
             
             final IItemStack workingStack = IItemStack.of(stack.copy()).setAmount(1);
             
-            CraftTweakerAPI.LOGGER.info("Dumping all recipes that output {}!", ItemStackUtil.getCommandString(workingStack.getInternal()));
+            CommandUtilities.COMMAND_LOGGER.info("Dumping all recipes that output {}!", ItemStackUtil.getCommandString(workingStack.getInternal()));
             
             ((AccessRecipeManager) player.level.getRecipeManager()).crafttweaker$getRecipes()
                     .forEach((recipeType, map) ->
@@ -135,7 +134,7 @@ public final class RecipeCommands {
             return;
         }
         
-        CraftTweakerAPI.LOGGER.info("Recipe type: '{}'\n  {}\n", manager.getCommandString(), dumpResult.isEmpty() ? "No recipe found" : dumpResult);
+        CommandUtilities.COMMAND_LOGGER.info("Recipe type: '{}'\n  {}\n", manager.getCommandString(), dumpResult.isEmpty() ? "No recipe found" : dumpResult);
     }
     
     private static ResourceLocation serializer(final Recipe<?> recipe) {

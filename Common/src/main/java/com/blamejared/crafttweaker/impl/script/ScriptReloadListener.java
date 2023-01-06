@@ -82,7 +82,7 @@ public class ScriptReloadListener extends SimplePreparableReloadListener<Void> {
         try {
             preparedRun.execute();
         } catch(final Throwable e) {
-            CraftTweakerAPI.LOGGER.error("Unable to execute script run", e);
+            CraftTweakerCommon.logger().error("Unable to execute script run", e);
             return;
         } finally {
             IngredientCacheBuster.release();
@@ -116,7 +116,7 @@ public class ScriptReloadListener extends SimplePreparableReloadListener<Void> {
         try {
             Files.walkFileTree(root, FileGathererHelper.of(matcher, children::add));
         } catch(final IOException e) {
-            CraftTweakerAPI.LOGGER.error("Unable to read script files! This is serious", e);
+            CraftTweakerCommon.logger().error("Unable to read script files! This is serious", e);
         }
         return Pair.of(root, Collections.unmodifiableList(children));
     }
@@ -156,7 +156,7 @@ public class ScriptReloadListener extends SimplePreparableReloadListener<Void> {
         try {
             return String.join("\n", Files.readAllLines(file));
         } catch(final IOException e) {
-            CraftTweakerAPI.LOGGER.info("Unable to read script file " + file, e);
+            CraftTweakerCommon.logger().info("Unable to read script file " + file, e);
             return "";
         }
     }
@@ -166,10 +166,15 @@ public class ScriptReloadListener extends SimplePreparableReloadListener<Void> {
         
         final Collection<String> patronList = CraftTweakerCommon.getPatronList();
         
+        if(patronList.isEmpty()) {
+            return;
+        }
+        
         patronList.stream()
-                .skip(patronList.isEmpty() ? 0 : RANDOM.nextInt(patronList.size()))
+                .skip(RANDOM.nextInt(patronList.size()))
                 .findFirst()
-                .ifPresent(name -> CraftTweakerAPI.LOGGER.info("This reload was made possible by {} and more! Become a patron at https://patreon.com/jaredlll08?s=crtmod", name));
+                .ifPresent(name -> CraftTweakerCommon.logger()
+                        .info("This reload was made possible by {} and more! Become a patron at https://patreon.com/jaredlll08?s=crtmod", name));
     }
     
 }
